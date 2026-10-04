@@ -1,0 +1,114 @@
+#+TITLE: yomitan.el — Yomitan dictionaries in Emacs
+#+OPTIONS: toc:nil
+
+Lookup against [[https://yomitan.wiki][Yomitan]] dictionaries from inside Emacs. Deliberately invoked:
+no hover, no idle timer, nothing happens until a key is pressed.
+
+* Why this is tractable
+
+A Yomitan dictionary is a zip of JSON, not a proprietary index. Each
+=term_bank_N.json= is an array of entries:
+
+: [expression, reading, definitionTags, rules, score, glossary, sequence, termTags]
+
+Modern entries carry =structured-content= in the glossary — a nested tree of
+={tag, data, content}= nodes mimicking HTML. The useful handle is =data.content=,
+which labels each node's role:
+
+: ul[sense-groups] > li[sense-group] > span[part-of-speech-info]
+:                                   > ol > li[sense] > span[field-info]
+:                                                    > ul[glossary] > li
+: div[attribution]
+
+Honouring those roles instead of flattening the tree is the whole difference
+between an entry and a wall of words. Compare, for 位相:
+
+| flattened        | role-aware                                  |
+|------------------+---------------------------------------------|
+| nounsuru         | =noun=                                      |
+| physics          | =1. [physics] phase (e.g. wave, moon)=      |
+| phase (e.g. ...) | =2. [math] topology=                        |
+| math             | =3. [linguistics] register=                 |
+| topology ...     | =— JMdict=                                  |
+
+* Install
+
+Emacs 29+ (built-in sqlite). Import is Python because pushing 500 MB of JSON
+through Emacs would be painful; Emacs only ever queries.
+
+#+begin_src sh
+./import.py ~/torrents/jitendex-yomitan.zip
+#+end_src
+
+Jitendex: 213 term banks, 424,715 entries, ~25 s, 658 MB on disk. Re-running for
+the same dictionary title replaces it, so updates are safe. Several dictionaries
+can coexist; each is one row in =dict=.
+
+#+begin_src elisp
+(add-to-list 'load-path "~/proj/yomitan")
+(autoload 'yomitan-at-point "yomitan" nil t)
+(autoload 'yomitan-lookup   "yomitan" nil t)
+(global-set-key (kbd "C-c y") #'yomitan-at-point)
+#+end_src
+
+* Use
+
+| =M-x yomitan-at-point= | longest match starting at point |
+| =M-x yomitan-lookup=   | prompt, or the active region     |
+| =M-x yomitan-dicts=    | what is imported                 |
+
+Scanning is longest-first, as Yomitan does it, so point on 位相幾何学の研究
+matches 位相幾何学 and not 位相. Lookup hits both expression and reading, so
+いそう returns all five homophones.
+
+* Cantonese, from Unihan
+
+No download needed: Debian ships Unihan at =/usr/share/unicode/Unihan_*.txt.bz2=.
+
+#+begin_src sh
+./import-unihan.py     # 46,205 characters, ~2 s
+#+end_src
+
+Readings are indexed, so =maa1= finds 嗎 嘛 媽 妈 嬤 嬷 么 — lookup by jyutping
+works because the jyutping *is* the reading.
+
+Two fields carry the usage signal, and they are not the obvious ones:
+
+- =kJoyoKanji= — everyday Japanese. 会 and 学 have it; 會 and 學 do not.
+- =kGradeLevel= — the Hong Kong primary grade by which a pupil should know the
+  character. 嗎 and 會 are grade 1.
+
+Together they give what a Japanese dictionary cannot:
+
+: 會 【wui6】
+:   1. to assemble, meet together  2. a meeting  3. an organization
+:   use: HK primary grade 1 · not jōyō (Japanese uses 会)
+:   simplified: 会
+
+*=kIRG_JSource= is not this signal and must not be used as it.* It records that a
+character appears in a Japanese national standard, but JIS X 0212/0213 encode
+many characters Japanese never uses — 嗎 included. A first pass of this importer
+printed "not in the Japanese set" from the IRG sources and said the *opposite* of
+the truth for 嗎. IRG data is reported as =encoded in:=, never as usage.
+
+* Known limits
+
+- *Characters only, for Cantonese.* Unihan is a character database, so 唔知 and
+  點樣 are not in it as words. Word-level Cantonese needs CC-Canto (CC BY-SA) or
+  words.hk; both are plain text and would import into this same schema, but both
+  need downloading.
+- *No deinflection.* 食べられなかった will not find 食べる. Yomitan has a rules
+  engine for this; the =rules= column is imported (=v5=, =v1=, =adj-i= …) so the
+  data is there, but nothing uses it yet. This is the main gap.
+- *Rendering is plain text.* The =raw= column holds the original JSON, so a
+  renderer using images, pitch-accent graphics and clickable xrefs can be added
+  without re-importing.
+- The db carries =raw= as well as =plain=, which is most of the 658 MB. Dropping
+  it would cut that to well under 100 MB at the cost of that future renderer.
+
+* Possible next
+
+A Yomitan entry is =expression · reading · tags · glossary=, which is a hord quad
+with the names changed. So this importer is most of a hord importer — lexical data
+as cards. Yomitan also has Cantonese support and CC-Canto/Jyutping dictionaries in
+the same format, which would feed the 粵諺 material directly.
