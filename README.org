@@ -57,7 +57,9 @@ can coexist; each is one row in =dict=.
 | =C-c y= with a region  | exactly the selection — one character inside a word |
 | =C-u C-c y=            | only the single character after point      |
 | =C-c Y=                | prompt, prefilled from the region          |
-| =M-x yomitan-dicts=    | what is imported                          |
+| =w= in the results    | the same word on Wiktionary, in eww        |
+| =C-u w=               | Wiktionary in an external browser          |
+| =M-x yomitan-dicts=   | loaded version, priority, what is imported |
 
 In the =*yomitan*= buffer, each entry is followed by its *component characters*,
 and =RET= or =mouse-1= on one looks it up — so 黐線 shows 黐 ci1 and 線 sin3
@@ -140,6 +142,18 @@ make the choice a coin toss.
 8,883 of CC-Canto's 34,335 lines — a quarter of the dictionary — because some
 lines omit it and some carry a trailing =# adapted from cc-cedict= comment. The
 first version of this importer did exactly that and reported success.
+
+* Wiktionary is the level below this
+
+Searching =wiktionary 嗎= in a browser answers the question and costs a context
+switch; Wiktionary is superb for etymology and hopeless as a quick gloss — 嗎 has
+seven Etymology sections. So this does the light lookup and hands off: =w= opens
+the headword in eww, anchored to the section that matches the entry's language
+(=#Chinese= for 黐線, =#Japanese= for 位相幾何学), so the page opens where it is
+relevant rather than at the top of a very long article.
+
+Set =yomitan-wiktionary-browser= to =browse-url= to leave Emacs by default, or
+=C-u w= to do it once.
 
 * Known limits
 

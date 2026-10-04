@@ -14,8 +14,9 @@
 
 (require 'sqlite)
 (require 'cl-lib)
+(require 'url-util)
 
-(defconst yomitan-version "0.4"
+(defconst yomitan-version "0.5"
   "Bumped on every behaviour change, because the autoload loads this file once
 and an Emacs that has already loaded it keeps the old definitions until
 \\[load-library].  `yomitan-dicts' reports it, so a surprising result can be
@@ -46,7 +47,20 @@ Japanese outrank Cantonese on a Han character.  Reorder this to taste; a
 dictionary not listed sorts after every listed one, by its own score."
   :type '(repeat string) :group 'yomitan)
 
+(defcustom yomitan-wiktionary-url "https://en.wiktionary.org/wiki/%s"
+  "Wiktionary URL template; %s is the percent-encoded headword."
+  :type 'string :group 'yomitan)
+
+(defcustom yomitan-wiktionary-browser #'eww
+  "How to open Wiktionary.  `eww' keeps it in Emacs; `browse-url' leaves."
+  :type '(choice (const :tag "eww, inside Emacs" eww)
+                 (const :tag "external browser" browse-url)
+                 function)
+  :group 'yomitan)
+
 (defvar yomitan--conn nil)
+(defvar-local yomitan--term nil "Headword this *yomitan* buffer is showing.")
+(defvar-local yomitan--lang nil "Source language of the best entry shown.")
 
 (defun yomitan--db ()
   (unless (and yomitan--conn (sqlitep yomitan--conn))
@@ -178,6 +192,8 @@ Returns (TERM . ROWS), or nil."
   (with-current-buffer (get-buffer-create "*yomitan*")
     (yomitan-mode)
     (yomitan--insert term rows)
+    (setq yomitan--term term
+          yomitan--lang (nth 5 (car rows)))
     (display-buffer (current-buffer))))
 
 ;;;###autoload
@@ -237,12 +253,39 @@ Otherwise take the longest match starting at point."
                                    " GROUP BY d.id"))
             "\n")))
 
+(defun yomitan--wiktionary-anchor (lang)
+  "Wiktionary section for LANG, so the page opens where it is relevant."
+  (cond ((member lang '("yue" "zh")) "#Chinese")
+        ((equal lang "ja") "#Japanese")
+        (t "")))
+
+;;;###autoload
+(defun yomitan-wiktionary (&optional external)
+  "Open the current headword on Wiktionary, at the relevant language section.
+
+This dictionary is for light lookup; Wiktionary is the level below it --
+etymology, every sense, the full pronunciation table.  With a prefix argument
+use an external browser instead of eww."
+  (interactive "P")
+  (let ((term (or yomitan--term
+                  (yomitan--region-text)
+                  (and (char-after) (yomitan--cjk-p (char-after))
+                       (string (char-after)))
+                  (read-string "Wiktionary: "))))
+    (if (or (null term) (string-empty-p term))
+        (message "yomitan: nothing to look up")
+      (let ((url (concat (format yomitan-wiktionary-url (url-hexify-string term))
+                         (yomitan--wiktionary-anchor yomitan--lang))))
+        (message "%s" url)
+        (funcall (if external #'browse-url yomitan-wiktionary-browser) url)))))
+
 (defvar-keymap yomitan-mode-map
   "q"     #'quit-window
   "n"     #'next-line
   "p"     #'previous-line
   "RET"   #'yomitan-follow
-  "<mouse-1>" #'yomitan-follow)
+  "<mouse-1>" #'yomitan-follow
+  "w"     #'yomitan-wiktionary)
 
 (define-derived-mode yomitan-mode special-mode "Yomitan"
   "Major mode for Yomitan dictionary results.")
