@@ -15,6 +15,12 @@
 (require 'sqlite)
 (require 'cl-lib)
 
+(defconst yomitan-version "0.4"
+  "Bumped on every behaviour change, because the autoload loads this file once
+and an Emacs that has already loaded it keeps the old definitions until
+\\[load-library].  `yomitan-dicts' reports it, so a surprising result can be
+checked against the source before being treated as a bug.")
+
 (defgroup yomitan nil "Yomitan dictionary lookup." :group 'applications)
 
 (defcustom yomitan-db (expand-file-name "~/.local/share/yomitan/dict.db")
@@ -218,9 +224,11 @@ Otherwise take the longest match starting at point."
 
 ;;;###autoload
 (defun yomitan-dicts ()
-  "Report the imported dictionaries."
+  "Report the loaded version and the imported dictionaries."
   (interactive)
-  (message "%s"
+  (message "yomitan %s  (priority: %s)\n%s"
+           yomitan-version
+           (string-join yomitan-dictionary-priority " > ")
            (mapconcat
             (lambda (r) (format "%s  (%s entries, %s)" (nth 0 r) (nth 1 r) (nth 2 r)))
             (sqlite-select (yomitan--db)
