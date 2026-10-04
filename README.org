@@ -109,8 +109,16 @@ Plain CC-CEDICT has no jyutping, so the separate =cccedict-canto-readings= file
 
 Traditional *and* simplified forms are both indexed, and each entry is indexed
 under four readings — full jyutping, full pinyin, and the toneless run-together
-forms people actually type. So 一世人, 一世人, =jat1 sai3 jan4= and =jatsaijan=
-all find the same entry, and 唔知 gives "don't know (spoken)".
+forms people actually type. So 一世人, 一世人, =jat1 sai3 jan4=, =ci1sin3= and =jatsaijan= all find their
+entry, and 唔知 gives "don't know (spoken)".
+
+Six reading forms per entry, because people type all of them: =ci1 sin3= as the
+data has it, =ci1sin3= with tones but no spaces (what a jyutping IME user types),
+=cisin= with no tones, and the same three for pinyin. Indexing only the first and
+last loses the middle one, which is the most likely query of the three.
+
+Traditional ranks above simplified, since equal score and equal length otherwise
+make the choice a coin toss.
 
 *Parse tolerantly.* Requiring the closing =/= of =/sense/sense/= silently drops
 8,883 of CC-Canto's 34,335 lines — a quarter of the dictionary — because some

@@ -55,7 +55,7 @@ wui5), so collapse rows that differ only by which reading matched."
         (unless (gethash key seen)
           (puthash key t seen)
           (push r out))))
-    (nreverse (seq-take (nreverse out) yomitan-max-entries))))
+    (seq-take (nreverse out) yomitan-max-entries)))
 
 (defun yomitan--scan-at-point ()
   "Longest substring starting at point that is in the dictionary.

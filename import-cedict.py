@@ -91,8 +91,16 @@ def render(trad, simp, pinyin, jyut, defs):
     return "\n".join(out)
 
 def readings_for(pinyin, jyut):
+    """Every form someone might actually type.
+
+    For 黐線 that is "ci1 sin3" (as the data has it), "ci1sin3" (how a jyutping
+    IME user types it -- tones kept, spaces dropped), and "cisin" (no tones at
+    all), plus the same three for pinyin. Omitting the middle one loses the most
+    likely query of the three.
+    """
     out = []
-    for r in (jyut, pinyin, toneless(jyut), toneless(pinyin)):
+    for r in (jyut, jyut.replace(" ", "") if jyut else "", toneless(jyut),
+              pinyin, pinyin.replace(" ", "") if pinyin else "", toneless(pinyin)):
         if r and r not in out:
             out.append(r)
     return out or [""]
@@ -122,13 +130,15 @@ def main():
             if not plain:
                 continue
             n += 1
-            exprs = [trad] + ([simp] if simp and simp != trad else [])
+            # he writes traditional: rank it above the simplified form, which is
+            # otherwise a coin toss between two rows of equal score and length
+            exprs = [(trad, 1)] + ([(simp, 0)] if simp and simp != trad else [])
             raw_json = json.dumps({"trad": trad, "simp": simp, "pinyin": pinyin,
                                    "jyutping": jyut, "defs": defs, "line": raw},
                                   ensure_ascii=False)
-            for ex in exprs:
+            for ex, rank in exprs:
                 for rd in readings_for(pinyin, jyut):
-                    batch.append((did, ex, rd, "", "", 0, 0, "", plain, raw_json))
+                    batch.append((did, ex, rd, "", "", rank, 0, "", plain, raw_json))
             if len(batch) >= 40000:
                 con.executemany("INSERT INTO term(dict_id,expression,reading,deftags,rules,"
                                 "score,seq,termtags,plain,raw) VALUES(?,?,?,?,?,?,?,?,?,?)", batch)
