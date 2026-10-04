@@ -16,7 +16,7 @@
 (require 'cl-lib)
 (require 'url-util)
 
-(defconst yomitan-version "0.5"
+(defconst yomitan-version "0.6"
   "Bumped on every behaviour change, because the autoload loads this file once
 and an Emacs that has already loaded it keeps the old definitions until
 \\[load-library].  `yomitan-dicts' reports it, so a surprising result can be
@@ -279,13 +279,21 @@ use an external browser instead of eww."
         (message "%s" url)
         (funcall (if external #'browse-url yomitan-wiktionary-browser) url)))))
 
-(defvar-keymap yomitan-mode-map
-  "q"     #'quit-window
-  "n"     #'next-line
-  "p"     #'previous-line
-  "RET"   #'yomitan-follow
-  "<mouse-1>" #'yomitan-follow
-  "w"     #'yomitan-wiktionary)
+(defvar yomitan-mode-map (make-sparse-keymap)
+  "Keymap for `yomitan-mode'.")
+
+;; Bindings are applied on every load, NOT inside the defvar.  `defvar-keymap'
+;; expands to `defvar', which does not reassign an already-bound variable, so a
+;; keymap defined that way is frozen at whatever the first load of this file put
+;; in it -- reloading never adds a key, and a new binding presents as
+;; "w is undefined" with no way to fix it short of restarting Emacs.
+(dolist (b '(("q"         quit-window)
+             ("n"         next-line)
+             ("p"         previous-line)
+             ("RET"       yomitan-follow)
+             ("<mouse-1>" yomitan-follow)
+             ("w"         yomitan-wiktionary)))
+  (keymap-set yomitan-mode-map (car b) (cadr b)))
 
 (define-derived-mode yomitan-mode special-mode "Yomitan"
   "Major mode for Yomitan dictionary results.")

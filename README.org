@@ -155,6 +155,18 @@ relevant rather than at the top of a very long article.
 Set =yomitan-wiktionary-browser= to =browse-url= to leave Emacs by default, or
 =C-u w= to do it once.
 
+* Reloading
+
+After editing, =M-x load-library RET yomitan RET=. The autoload pulls the file in
+once, so a running Emacs otherwise keeps the old definitions, and
+=M-x yomitan-dicts= reports =yomitan-version= so that can be checked.
+
+Keymap bindings are applied by a =dolist= on every load rather than inside
+=defvar-keymap=, which expands to =defvar= and therefore *does not reassign an
+already-bound variable*. A keymap defined that way is frozen at whatever the
+first load put in it: new keys never appear however often the file is reloaded,
+and the symptom is =w is undefined= with no fix short of restarting Emacs.
+
 * Known limits
 
 - *words.hk is not included.* It is the best Cantonese dictionary; its free
