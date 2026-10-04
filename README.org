@@ -53,9 +53,25 @@ can coexist; each is one row in =dict=.
 
 * Use
 
-| =M-x yomitan-at-point= | longest match starting at point |
-| =M-x yomitan-lookup=   | prompt, or the active region     |
-| =M-x yomitan-dicts=    | what is imported                 |
+| =C-c y=                | longest match starting at point            |
+| =C-c y= with a region  | exactly the selection — one character inside a word |
+| =C-u C-c y=            | only the single character after point      |
+| =C-c Y=                | prompt, prefilled from the region          |
+| =M-x yomitan-dicts=    | what is imported                          |
+
+In the =*yomitan*= buffer, each entry is followed by its *component characters*,
+and =RET= or =mouse-1= on one looks it up — so 黐線 shows 黐 ci1 and 線 sin3
+beneath it and either can be followed.
+
+Components are glossed in the language of the entry above them, which is why
+位相幾何学 lists い しょう いく なん がく and not wai2 soeng1 gei2 ho4 hok6.
+Cantonese and Mandarin count as one group for this (黐 in 黐線 comes from
+CC-Canto even though 黐線 matched CC-CEDICT); Japanese is its own.
+
+*Scores are not comparable across dictionaries.* Jitendex carries JMdict
+frequency ranks while the others are flat, so ordering by score alone put the
+Japanese せん above the Cantonese sin3 for 線. =yomitan-dictionary-priority=
+orders dictionaries first, score second; reorder it to taste.
 
 Scanning is longest-first, as Yomitan does it, so point on 位相幾何学の研究
 matches 位相幾何学 and not 位相. Lookup hits both expression and reading, so

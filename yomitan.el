@@ -30,6 +30,16 @@ Yomitan itself scans longest-first so that 位相幾何学 wins over 位相."
   "Most entries shown for one lookup."
   :type 'integer :group 'yomitan)
 
+(defcustom yomitan-dictionary-priority
+  '("CC-Canto" "Unihan" "CC-CEDICT" "Jitendex")
+  "Dictionary titles, best first, matched as substrings.
+
+Scores are not comparable across dictionaries -- Jitendex carries JMdict
+frequency ranks, while the others are flat -- so sorting by score alone lets
+Japanese outrank Cantonese on a Han character.  Reorder this to taste; a
+dictionary not listed sorts after every listed one, by its own score."
+  :type '(repeat string) :group 'yomitan)
+
 (defvar yomitan--conn nil)
 
 (defun yomitan--db ()
@@ -39,23 +49,86 @@ Yomitan itself scans longest-first so that 位相幾何学 wins over 位相."
     (setq yomitan--conn (sqlite-open yomitan-db)))
   yomitan--conn)
 
+(defun yomitan--dict-rank (title)
+  (or (seq-position yomitan-dictionary-priority title
+                    (lambda (pat d) (string-match-p (regexp-quote pat) (or d ""))))
+      (length yomitan-dictionary-priority)))
+
 (defun yomitan--rows (term)
-  "Entries whose expression or reading is exactly TERM, best score first.
+  "Entries whose expression or reading is exactly TERM.
+Ordered by `yomitan-dictionary-priority', then by the dictionary\'s own score.
 A character may be indexed under several readings (Unihan gives 會 wui6 and
 wui5), so collapse rows that differ only by which reading matched."
   (let ((seen (make-hash-table :test #'equal)) (out '()))
     (dolist (r (sqlite-select
                 (yomitan--db)
-                (concat "SELECT t.expression, t.reading, t.plain, d.title"
+                (concat "SELECT t.expression, t.reading, t.plain, d.title, t.score,"
+                        " d.src_lang"
                         " FROM term t JOIN dict d ON d.id = t.dict_id"
                         " WHERE t.expression = ?1 OR t.reading = ?1"
                         " ORDER BY t.score DESC, length(t.expression) LIMIT ?2")
-                (list term (* 4 yomitan-max-entries))))
+                (list term (* 8 yomitan-max-entries))))
       (let ((key (list (nth 0 r) (nth 2 r) (nth 3 r))))
         (unless (gethash key seen)
           (puthash key t seen)
           (push r out))))
-    (seq-take (nreverse out) yomitan-max-entries)))
+    (seq-take
+     (sort (nreverse out)
+           (lambda (a b)
+             (let ((ra (yomitan--dict-rank (nth 3 a)))
+                   (rb (yomitan--dict-rank (nth 3 b))))
+               (if (= ra rb)
+                   (> (or (nth 4 a) 0) (or (nth 4 b) 0))
+                 (< ra rb)))))
+     yomitan-max-entries)))
+
+(defun yomitan--region-text ()
+  "The active region as a trimmed string, or nil."
+  (when (use-region-p)
+    (let ((t_ (string-trim (buffer-substring-no-properties
+                            (region-beginning) (region-end)))))
+      (unless (string-empty-p t_) t_))))
+
+(defun yomitan--cjk-p (ch)
+  (or (<= #x3400 ch #x9fff) (<= #xf900 ch #xfaff) (<= #x20000 ch #x3ffff)))
+
+(defun yomitan--brief (rows)
+  "First sense line from the best of ROWS, for a one-line summary."
+  (when rows
+    (let* ((plain (or (nth 2 (car rows)) ""))
+           (sense (seq-find (lambda (l) (string-match-p "\\`[ \t]*[0-9]+\\." l))
+                            (split-string plain "\n" t)))
+           (head (car (split-string plain "\n" t))))
+      (string-trim (replace-regexp-in-string "\\`[ \t]*[0-9]+\\.[ \t]*" ""
+                                             (or sense head ""))))))
+
+(defun yomitan--lang-group (lang)
+  "Languages that gloss each other\'s characters acceptably.
+Cantonese and Mandarin do; Japanese does not."
+  (if (member lang '("yue" "zh")) '("yue" "zh") (list lang)))
+
+(defun yomitan--components (term &optional lang)
+  "For a multi-character TERM, (CHAR READING BRIEF) per CJK character.
+
+LANG is the source language of the entry being shown, so that the characters
+of a Japanese word are glossed in Japanese and those of a Cantonese word in
+Cantonese -- without it 位相幾何学 lists its characters as wai2 soeng1 gei2 ho4
+hok6.  Within a language group the usual `yomitan-dictionary-priority' applies,
+so 黐 in 黐線 is glossed from CC-Canto even though 黐線 itself matched CC-CEDICT."
+  (when (> (length term) 1)
+    (let ((group (and lang (yomitan--lang-group lang)))
+          out)
+      (dolist (ch (string-to-list term))
+        (when (yomitan--cjk-p ch)
+          (let* ((rows (yomitan--rows (string ch)))
+                 (best (or (and group
+                                (seq-find (lambda (r) (member (nth 5 r) group)) rows))
+                           (car rows))))
+            (when best
+              (push (list (string ch) (or (nth 1 best) "")
+                          (yomitan--brief (list best)))
+                    out)))))
+      (nreverse out))))
 
 (defun yomitan--scan-at-point ()
   "Longest substring starting at point that is in the dictionary.
@@ -82,6 +155,17 @@ Returns (TERM . ROWS), or nil."
           (insert (propertize (format " 【%s】" read) 'face 'font-lock-type-face)))
         (insert (propertize (format "   %s\n" (or dict "")) 'face 'shadow))
         (insert (or plain "") "\n\n")))
+    (let ((comps (yomitan--components term (nth 5 (car rows)))))
+      (when comps
+        (insert (propertize "characters\n" 'face 'shadow))
+        (dolist (c comps)
+          (insert "  "
+                  (propertize (nth 0 c) 'face 'bold
+                              'yomitan-term (nth 0 c)
+                              'mouse-face 'highlight
+                              'help-echo "RET or mouse-1: look up this character")
+                  (propertize (format "  %-12s" (nth 1 c)) 'face 'font-lock-type-face)
+                  (or (nth 2 c) "") "\n"))))
     (goto-char (point-min))))
 
 (defun yomitan--show (term rows)
@@ -102,12 +186,35 @@ Returns (TERM . ROWS), or nil."
       (message "yomitan: no entry for %s" term))))
 
 ;;;###autoload
-(defun yomitan-at-point ()
-  "Look up the longest dictionary match starting at point."
+(defun yomitan-at-point (&optional single)
+  "Look up at point.
+
+With an active region, look up exactly that text -- which is how you get at
+one character inside a word.  With a prefix argument, look up only the single
+character after point, ignoring any longer word that would otherwise win.
+Otherwise take the longest match starting at point."
+  (interactive "P")
+  (let* ((region (yomitan--region-text))
+         (term (or region
+                   (and single (char-after)
+                        (string (char-after))))))
+    (if term
+        (let ((rows (yomitan--rows term)))
+          (if rows (yomitan--show term rows)
+            (message "yomitan: no entry for %s" term)))
+      (let ((hit (yomitan--scan-at-point)))
+        (if hit (yomitan--show (car hit) (cdr hit))
+          (message "yomitan: nothing at point"))))))
+
+(defun yomitan-follow ()
+  "Look up the character named by the link at point in the *yomitan* buffer."
   (interactive)
-  (let ((hit (yomitan--scan-at-point)))
-    (if hit (yomitan--show (car hit) (cdr hit))
-      (message "yomitan: nothing at point"))))
+  (let ((term (get-text-property (point) 'yomitan-term)))
+    (if (not term)
+        (message "yomitan: no character here")
+      (let ((rows (yomitan--rows term)))
+        (if rows (yomitan--show term rows)
+          (message "yomitan: no entry for %s" term))))))
 
 ;;;###autoload
 (defun yomitan-dicts ()
@@ -123,9 +230,11 @@ Returns (TERM . ROWS), or nil."
             "\n")))
 
 (defvar-keymap yomitan-mode-map
-  "q" #'quit-window
-  "n" #'next-line
-  "p" #'previous-line)
+  "q"     #'quit-window
+  "n"     #'next-line
+  "p"     #'previous-line
+  "RET"   #'yomitan-follow
+  "<mouse-1>" #'yomitan-follow)
 
 (define-derived-mode yomitan-mode special-mode "Yomitan"
   "Major mode for Yomitan dictionary results.")
