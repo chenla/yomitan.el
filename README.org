@@ -58,7 +58,8 @@ can coexist; each is one row in =dict=.
 | =C-u C-c y=            | only the single character after point      |
 | =C-c Y=                | prompt, prefilled from the region          |
 | =w= in the results    | the same word on Wiktionary, in eww        |
-| =C-u w=               | Wiktionary in an external browser          |
+| =b= in the results    | Wiktionary in an external browser          |
+| =C-u w=               | the same as =b=                            |
 | =M-x yomitan-dicts=   | loaded version, priority, what is imported |
 
 In the =*yomitan*= buffer, each entry is followed by its *component characters*,

@@ -16,7 +16,7 @@
 (require 'cl-lib)
 (require 'url-util)
 
-(defconst yomitan-version "0.6"
+(defconst yomitan-version "0.7"
   "Bumped on every behaviour change, because the autoload loads this file once
 and an Emacs that has already loaded it keeps the old definitions until
 \\[load-library].  `yomitan-dicts' reports it, so a surprising result can be
@@ -279,6 +279,16 @@ use an external browser instead of eww."
         (message "%s" url)
         (funcall (if external #'browse-url yomitan-wiktionary-browser) url)))))
 
+;;;###autoload
+(defun yomitan-wiktionary-browser ()
+  "Open the current headword on Wiktionary in an external browser.
+
+The same page as `yomitan-wiktionary', but where a complex character is
+large enough to see how it is written, and the page's images of older
+forms are one click away.  `b', as in elfeed."
+  (interactive)
+  (yomitan-wiktionary t))
+
 (defvar yomitan-mode-map (make-sparse-keymap)
   "Keymap for `yomitan-mode'.")
 
@@ -292,7 +302,8 @@ use an external browser instead of eww."
              ("p"         previous-line)
              ("RET"       yomitan-follow)
              ("<mouse-1>" yomitan-follow)
-             ("w"         yomitan-wiktionary)))
+             ("w"         yomitan-wiktionary)
+             ("b"         yomitan-wiktionary-browser)))
   (keymap-set yomitan-mode-map (car b) (cadr b)))
 
 (define-derived-mode yomitan-mode special-mode "Yomitan"
